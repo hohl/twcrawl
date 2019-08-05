@@ -2,8 +2,8 @@
   "twitter": {
     "access_token": "__REPLACE_ME__",
     "access_token_secret":  "__REPLACE_ME__",
-    "consume_key": "__REPLACE_ME__",
-    "consume_secret": "__REPLACE_ME__"
+    "consumer_key": "__REPLACE_ME__",
+    "consumer_secret": "__REPLACE_ME__"
   },
   "database": {
     "url": "sqlite:///data/twitter.sqlite3"
