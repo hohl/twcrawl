@@ -1,9 +1,11 @@
-from sqlalchemy import Boolean, BigInteger, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from contextlib import contextmanager
+from sqlalchemy import Boolean, BigInteger, create_engine, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from .app import engine
 
 Base = declarative_base()
+engine = create_engine('sqlite:///data/twitter.sqlite3')
+Session = sessionmaker(bind=engine)
 
 user_relationship = Table(
     'user_relationship', Base.metadata,
@@ -59,3 +61,17 @@ class Status(Base):
 def init_models():
     """Creates the required database file and tables."""
     Base.metadata.create_all(engine)
+
+
+@contextmanager
+def session_scope():
+    """Provide a transactional scope around a series of operations."""
+    session = Session()
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()
