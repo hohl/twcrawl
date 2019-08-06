@@ -1,8 +1,11 @@
 import asyncio
 import json
+import logging
+import sys
 from abc import ABC, abstractmethod
-from typing import List, TypeVar, Generic, Union, NoReturn
-from .models import session_scope
+from typing import List, TypeVar, Generic, Union, NoReturn, Iterator, Iterable
+from sqlalchemy import and_
+from .models import session_scope, Session
 from .twitter import *
 
 T = TypeVar("T")
@@ -12,30 +15,23 @@ class BaseCrawler(ABC, Generic[T]):
     """Abstract base class for all crawlers."""
     timeout_seconds = 15 * 60  # Twitter limits are usually "per 15 minutes"
 
-    def __init__(self, client: TwitterClient):
-        self.client = client
+    def __init__(self, twitter: TwitterClient):
+        self.twitter = twitter
         self.queue = asyncio.Queue()
 
     def schedule(self, job: T) -> None:
-        self.log(f"Schedule {job}")
         self.queue.put_nowait(job)
+
+    def log(self, msg: str) -> None:
+        """Helper to log progress."""
+        print("[" + self.__class__.__name__ + "] " + msg)  # temporary solution only
 
     async def run(self) -> None:
         try:
-            job = self.queue.get_nowait()
-            try:
-                self.exec(job)
-            except RateLimitError:
-                self.log(f"Rate limit reached. Sleep {self.timeout_seconds} seconds…")
-                await asyncio.sleep(self.timeout_seconds)
-                self.queue.put_nowait(job)
-            self.queue.task_done()
+            await self.__get_and_exec_job()
         except asyncio.QueueEmpty:
-            self.log("Queue empty. Try to find new work...")
+            await asyncio.sleep(5)  # <- first, give the other tasks some time
             self.done()
-            await asyncio.sleep(3)
-        except BaseException as error:
-            self.log(f"Unexpected exception occurred: {error}")
         finally:
             await asyncio.sleep(0)
 
@@ -49,9 +45,16 @@ class BaseCrawler(ABC, Generic[T]):
         """Implement to issue new tasks when all existing tasks are complete."""
         pass
 
-    def log(self, msg: str) -> None:
-        """Helper to log progress."""
-        print("[" + self.__class__.__name__ + "] " + msg)  # temporary solution only
+    async def __get_and_exec_job(self):
+        """Pulls a job from the queue and executes it. Might raise QueueEmpty exception."""
+        job = self.queue.get_nowait()
+        try:
+            self.exec(job)
+            self.queue.task_done()
+        except RateLimitError:
+            self.log(f"Rate limit reached. Sleep {self.timeout_seconds} seconds…")
+            await asyncio.sleep(self.timeout_seconds)
+            self.queue.put_nowait(job)
 
 
 class UsersCrawler(BaseCrawler[Union[str, List[int]]]):
@@ -66,17 +69,25 @@ class UsersCrawler(BaseCrawler[Union[str, List[int]]]):
     def __exec_screen_name(self, screen_name: str) -> None:
         self.log(f"Crawl user profile of @{screen_name}...")
         with session_scope() as session:
-            user = self.client.user(screen_name)
-            session.add(user)
+            self.twitter.user(screen_name, session)
             session.commit()
 
     def __exec_list_of_ids(self, ids: List[int]) -> None:
         assert (len(ids) <= 100)
         self.log(f"Crawl user profiles of @{len(ids)}")
-        pass
+        with session_scope() as session:
+            self.twitter.users(ids, session)
+            session.commit()
 
     def done(self) -> None:
-        pass
+        # find users without even a screen_name (just empty IDs)
+        with session_scope() as session:
+            users = session.query(User).filter(User.screen_name.is_(None)).all()
+            self.log(f"Found {len(users)} to crawl...")
+            # Twitter API only allows to fetch in blocks of up to 100 IDs
+            for n in range(0, len(users), 100):
+                block_of_ids = list(map(lambda u: u.id, users[n:n + 100]))
+                self.schedule(block_of_ids)
 
 
 class RelationsCrawler(BaseCrawler[str]):
@@ -85,20 +96,25 @@ class RelationsCrawler(BaseCrawler[str]):
     (Note: A friend in Twitters definition is somebody you follow.)
     """
 
-    def __init__(self, client: TwitterClient, users_crawler: UsersCrawler):
-        super().__init__(client)
-        self.users_crawler = users_crawler
-
     def exec(self, screen_name: str) -> None:
         self.log(f"Crawl friends of @{screen_name}...")
-        all_ids = self.client.friends_ids(screen_name)
-        self.log(f"Found {len(all_ids)} friends for @{screen_name}.")
-        for n in range(0, len(all_ids), 100):
-            ids = all_ids[n:n + 100]
-            self.users_crawler.schedule(ids)
+        ids = self.twitter.friends_ids(screen_name)
+        self.log(f"Found {len(ids)} friends for @{screen_name}.")
+        with session_scope() as session:
+            user = session.query(User).filter_by(screen_name=screen_name).one()
+            user.friends = User.find_or_create(session, ids)
+            user.friends_crawled_at = datetime.now()
+            session.commit()
 
     def done(self) -> None:
-        pass
+        with session_scope() as session:
+            users = session.query(User).filter(and_(
+                User.screen_name.isnot(None),
+                User.friends_crawled_at.is_(None)
+            )).all()
+            for user in users:
+                self.schedule(user.screen_name)
+            self.log(f"Added {len(users)} users to the queue.")
 
 
 class StatusesCrawler(BaseCrawler[str]):
@@ -114,18 +130,25 @@ class StatusesCrawler(BaseCrawler[str]):
 async def __run_forever(crawler: BaseCrawler) -> None:
     """Internal helper to run a crawler forever with asyncio."""
     while True:
-        await crawler.run()
+        try:
+            await crawler.run()
+        except KeyboardInterrupt:
+            print("\n --- INTERRUPT SIGNAL RECEIVED --- \n")
+            sys.exit(0)
+        except:
+            logging.error("Unexpected exception occurred!", exc_info=True)
+            sys.exit(-1)
 
 
 async def crawl(args) -> NoReturn:
     """Initiates the crawling process."""
     with open('config.json') as config_file:
         config = json.load(config_file)
-        client = TwitterClient(config["twitter"])
-    users_crawler = UsersCrawler(client)
+        twitter = TwitterClient(config["twitter"])
+    users_crawler = UsersCrawler(twitter)
     users_crawler.schedule("realDonaldTrump")
-    relations_crawler = RelationsCrawler(client, users_crawler)
-    statuses_crawler = StatusesCrawler(client)
+    relations_crawler = RelationsCrawler(twitter)
+    statuses_crawler = StatusesCrawler(twitter)
     await asyncio.wait(map(__run_forever, [
         users_crawler,
         relations_crawler,

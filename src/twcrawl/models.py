@@ -1,7 +1,9 @@
 from contextlib import contextmanager
+from typing import List
 from sqlalchemy import Boolean, BigInteger, create_engine, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm.exc import NoResultFound
 
 Base = declarative_base()
 engine = create_engine('sqlite:///data/twitter.sqlite3')
@@ -31,6 +33,8 @@ class User(Base):
     statuses_count = Column(Integer)
     favourites_count = Column(Integer)
     created_at = Column(DateTime)
+    profile_crawled_at = Column(DateTime)
+    friends_crawled_at = Column(DateTime)
     friends = relationship(
         "User",
         secondary=user_relationship,
@@ -38,10 +42,24 @@ class User(Base):
         secondaryjoin=id == user_relationship.c.follower_user_id,
         backref="followers"
     )
+    statuses_crawled_at = Column(DateTime)
     statuses = relationship(
         "Status",
         backref="user"
     )
+
+    @staticmethod
+    def find_or_create(session: Session, ids: List[int]) -> List["User"]:
+        """Fetches all users with the given IDs or creates new ones."""
+        users = list()
+        for user_id in ids:
+            try:
+                user = session.query(User).filter_by(id=user_id).one()
+            except NoResultFound:
+                user = User(id=user_id)
+                session.add(user)
+            users.append(user)
+        return users
 
 
 class Status(Base):
