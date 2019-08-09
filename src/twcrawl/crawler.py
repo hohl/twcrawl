@@ -111,7 +111,9 @@ class RelationsCrawler(BaseCrawler[str]):
             users = session.query(User).filter(and_(
                 User.screen_name.isnot(None),
                 User.friends_crawled_at.is_(None)
-            )).all()
+            )).order_by(
+                User.followers_count.desc()
+            ).limit(5).all()
             for user in users:
                 self.schedule(user.screen_name)
             self.log(f"Added {len(users)} users to the queue.")
