@@ -74,7 +74,7 @@ class UsersCrawler(BaseCrawler[Union[str, List[int]]]):
 
     def __exec_list_of_ids(self, ids: List[int]) -> None:
         assert (len(ids) <= 100)
-        self.log(f"Crawl user profiles of @{len(ids)}")
+        self.log(f"Crawl user profiles of {len(ids)} yet unknown accounts...")
         with session_scope() as session:
             self.twitter.users(ids, session)
             session.commit()
@@ -123,10 +123,25 @@ class StatusesCrawler(BaseCrawler[str]):
     """Crawler to fetch all statuses (=tweets) by a given Twitter users screen name."""
 
     def exec(self, screen_name: str) -> None:
-        raise NotImplementedError
+        self.log(f"Download tweets for @{screen_name}...")
+        with session_scope() as session:
+            user = session.query(User).filter_by(screen_name=screen_name).one()
+            user.statuses_crawled_at = datetime.now()
+            self.twitter.statuses(screen_name, session)
+            session.commit()
+            self.log(f"Downloaded tweets for @{screen_name}.")
 
     def done(self) -> None:
-        pass
+        with session_scope() as session:
+            users = session.query(User).filter(and_(
+                User.screen_name.isnot(None),
+                User.statuses_crawled_at.is_(None)
+            )).order_by(
+                User.followers_count.desc()
+            ).limit(1).all()
+            for user in users:
+                self.schedule(user.screen_name)
+                self.log(f"Added @{user.screen_name} users to the queue.")
 
 
 async def __run_forever(crawler: BaseCrawler) -> None:

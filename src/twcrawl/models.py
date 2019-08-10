@@ -66,11 +66,9 @@ class Status(Base):
     """ORM entity to store any Tweet posted by a user in our database."""
     __tablename__ = "status"
     id = Column(BigInteger, primary_key=True)
-    user_id = Column(BigInteger, ForeignKey('user.id'))
+    author_user_id = Column(BigInteger, ForeignKey('user.id'))
     text = Column(Text)
     in_reply_to_status_id = Column(BigInteger, ForeignKey("status.id"))
-    quote_count = Column(Integer)
-    reply_count = Column(Integer)
     retweet_count = Column(Integer)
     favorite_count = Column(Integer)
     created_at = Column(DateTime)
