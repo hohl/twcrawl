@@ -135,7 +135,8 @@ class StatusesCrawler(BaseCrawler[str]):
         with session_scope() as session:
             users = session.query(User).filter(and_(
                 User.screen_name.isnot(None),
-                User.statuses_crawled_at.is_(None)
+                User.statuses_crawled_at.is_(None),
+                User.protected.is_(False)
             )).order_by(
                 User.followers_count.desc()
             ).limit(1).all()
