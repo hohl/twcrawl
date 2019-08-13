@@ -110,7 +110,8 @@ class RelationsCrawler(BaseCrawler[str]):
         with session_scope() as session:
             users = session.query(User).filter(and_(
                 User.screen_name.isnot(None),
-                User.friends_crawled_at.is_(None)
+                User.friends_crawled_at.is_(None),
+                User.protected.is_(False)
             )).order_by(
                 User.followers_count.desc()
             ).limit(5).all()
