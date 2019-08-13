@@ -82,7 +82,7 @@ class UsersCrawler(BaseCrawler[Union[str, List[int]]]):
     def done(self) -> None:
         # find users without even a screen_name (just empty IDs)
         with session_scope() as session:
-            users = session.query(User).filter(User.screen_name.is_(None)).all()
+            users = session.query(User).filter(User.profile_crawled_at.is_(None)).all()
             self.log(f"Found {len(users)} to crawl...")
             # Twitter API only allows to fetch in blocks of up to 100 IDs
             for n in range(0, len(users), 100):
