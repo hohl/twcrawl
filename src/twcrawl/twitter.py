@@ -29,7 +29,7 @@ def tweepy_scope(client):
     """Provide a Tweepy client scope which automatically handle rate limit exceptions."""
     try:
         yield client
-    except tweepy.RateLimitError as err:
+    except tweepy.RateLimitError:
         raise RateLimitError
 
 
@@ -61,8 +61,14 @@ class TwitterClient:
         """Fetches the Twitter profile of the given list of users IDs."""
         with twitter_scope(self.client) as twitter:
             ids_string = ",".join(str(id) for id in ids)
-            query = twitter.users.lookup(user_id=ids_string)
-            return list(map(lambda obj: self.__to_user(obj, session), query))
+            try:
+                query = twitter.users.lookup(user_id=ids_string)
+                return list(map(lambda obj: self.__to_user(obj, session), query))
+            except TwitterHTTPError as err:
+                if err.e.code == 404:
+                    return list(map(lambda user_id: self.__to_deleted_user(user_id, session), ids))
+                else:
+                    raise
 
     def friends_ids(self, screen_name: str) -> List[int]:
         """Fetches the IDs of the givens screen names friends on Twitter."""
@@ -100,6 +106,16 @@ class TwitterClient:
         user.statuses_count = obj["statuses_count"]
         user.favourites_count = obj["favourites_count"]
         user.created_at = self.__to_datetime(obj["created_at"])
+        user.profile_crawled_at = datetime.now()
+        return user
+
+    def __to_deleted_user(self, user_id: int, session: Session) -> User:
+        """Stores the passed ID as an ID of a deleted user in the database."""
+        user = session.query(User).filter(User.id == user_id).one_or_none()
+        if user is None:
+            user = User(id=user_id)
+            session.add(user)
+        user.screen_name = None
         user.profile_crawled_at = datetime.now()
         return user
 
