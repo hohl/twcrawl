@@ -14,6 +14,12 @@ parser.add_argument(
     action="store_true",
     help="create empty SQLite3 db before start crawling"
 )
+parser.add_argument(
+    '--users',
+    metavar='FILE',
+    type=argparse.FileType('r'),
+    help='file containing screen names of users to start crawling from'
+)
 
 if __name__ == '__main__':
     args = parser.parse_args()

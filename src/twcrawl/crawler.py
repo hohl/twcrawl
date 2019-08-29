@@ -165,7 +165,8 @@ async def crawl(args) -> NoReturn:
         config = json.load(config_file)
         twitter = TwitterClient(config["twitter"])
     users_crawler = UsersCrawler(twitter)
-    users_crawler.schedule("realDonaldTrump")
+    for user in args.users:
+        users_crawler.schedule(user.strip())
     relations_crawler = RelationsCrawler(twitter)
     statuses_crawler = StatusesCrawler(twitter)
     await asyncio.wait(map(__run_forever, [
