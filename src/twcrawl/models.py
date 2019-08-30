@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import List
+from typing import List, Optional
 from sqlalchemy import Boolean, BigInteger, create_engine, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -45,8 +45,17 @@ class User(Base):
     statuses_crawled_at = Column(DateTime)
     statuses = relationship(
         "Status",
-        backref="user"
+        primaryjoin="User.id==Status.author_user_id",
+        backref="author",
+        order_by="desc(Status.id)"
     )
+
+    def most_recent_status_id(self) -> Optional[int]:
+        """Fetches the ID of the most recent status of the user or returns None otherwise."""
+        if len(self.statuses) > 0:
+            return self.statuses[0].id
+        else:
+            return None
 
     @staticmethod
     def find_or_create(session: Session, ids: List[int]) -> List["User"]:

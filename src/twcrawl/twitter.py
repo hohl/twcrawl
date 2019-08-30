@@ -76,14 +76,14 @@ class TwitterClient:
             query = twitter.friends.ids(screen_name=screen_name)
             return query["ids"]
 
-    def statuses(self, screen_name: str, session: Session) -> List[Status]:
+    def statuses(self, screen_name: str, session: Session, since_id: int = None) -> List[Status]:
         with tweepy_scope(self.tweepy) as api_endpoint:
             cursor = tweepy.Cursor(
                 api_endpoint.user_timeline,
                 screen_name=screen_name,
                 count=200,
                 tweet_mode="extended",
-                since_id=None
+                since_id=since_id
             )
             return list(map(lambda obj: self.__to_status(obj, session), cursor.items()))
 

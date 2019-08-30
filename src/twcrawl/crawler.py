@@ -4,7 +4,7 @@ import logging
 import sys
 from abc import ABC, abstractmethod
 from typing import List, TypeVar, Generic, Union, NoReturn, Iterator, Iterable
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from .models import session_scope, Session
 from .twitter import *
 
@@ -128,15 +128,18 @@ class StatusesCrawler(BaseCrawler[str]):
         with session_scope() as session:
             user = session.query(User).filter_by(screen_name=screen_name).one()
             user.statuses_crawled_at = datetime.now()
-            self.twitter.statuses(screen_name, session)
+            self.twitter.statuses(screen_name, session, since_id=user.most_recent_status_id())
             session.commit()
-            self.log(f"Downloaded tweets for @{screen_name}.")
+            self.log(f"Downloaded {len(user.statuses)} tweets for @{screen_name}.")
 
     def done(self) -> None:
         with session_scope() as session:
             users = session.query(User).filter(and_(
                 User.screen_name.isnot(None),
-                User.statuses_crawled_at.is_(None),
+                or_(
+                    User.statuses_crawled_at.is_(None),
+                    User.statuses_crawled_at < datetime.now() - timedelta(days=5)
+                ),
                 User.protected.is_(False)
             )).order_by(
                 User.followers_count.desc()
@@ -165,8 +168,9 @@ async def crawl(args) -> NoReturn:
         config = json.load(config_file)
         twitter = TwitterClient(config["twitter"])
     users_crawler = UsersCrawler(twitter)
-    for user in args.users:
-        users_crawler.schedule(user.strip())
+    if args.users:
+        for user in args.users:
+            users_crawler.schedule(user.strip())
     relations_crawler = RelationsCrawler(twitter)
     statuses_crawler = StatusesCrawler(twitter)
     await asyncio.wait(map(__run_forever, [
