@@ -77,6 +77,15 @@ class TwitterClient:
             return query["ids"]
 
     def statuses(self, screen_name: str, session: Session, since_id: int = None) -> List[Status]:
+        try:
+            return self.__get__statuses(screen_name, session, since_id)
+        except tweepy.TweepError as err:
+            if err.response.status_code == 404:
+                return list()
+            else:
+                raise
+
+    def __get__statuses(self, screen_name: str, session: Session, since_id) -> List[Status]:
         with tweepy_scope(self.tweepy) as api_endpoint:
             cursor = tweepy.Cursor(
                 api_endpoint.user_timeline,
