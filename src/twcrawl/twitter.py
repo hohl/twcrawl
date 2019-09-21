@@ -73,14 +73,20 @@ class TwitterClient:
     def friends_ids(self, screen_name: str) -> List[int]:
         """Fetches the IDs of the givens screen names friends on Twitter."""
         with twitter_scope(self.client) as twitter:
-            query = twitter.friends.ids(screen_name=screen_name)
-            return query["ids"]
+            try:
+                query = twitter.friends.ids(screen_name=screen_name)
+                return query["ids"]
+            except TwitterHTTPError as err:
+                if err.e.code == 404 or err.e.code == 401:
+                    return list()
+                else:
+                    raise
 
     def statuses(self, screen_name: str, session: Session, since_id: int = None) -> List[Status]:
         try:
             return self.__get__statuses(screen_name, session, since_id)
         except tweepy.TweepError as err:
-            if err.response.status_code == 404:
+            if err is not None and err.response is not None and (err.response.status_code == 404 or err.response.status_code == 401):
                 return list()
             else:
                 raise
