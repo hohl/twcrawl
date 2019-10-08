@@ -21,8 +21,8 @@ API credentials.
 ## Usage
 
 Simply run `src/main.py --users users.txt`. `users.txt` should be
-a list of twitter handles to use entry points of the crawling process, one per
-each line of the text file.
+a list of twitter handles to use as entry points of the crawling process, one
+per each line of the text file.
 
 This will launch an endless running process, which crawls as many users as
 possible (and as fast as allowed by the Twitter API limits). You can pause the 
