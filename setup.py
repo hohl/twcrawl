@@ -20,7 +20,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     entry_points={
         'console_scripts': [
-            'gfg = twcrawl.cli:main'
+            'twcrawl = twcrawl.cli:main'
         ]
     },
     classifiers=[
