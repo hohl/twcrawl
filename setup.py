@@ -17,7 +17,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/hohl/twcrawl",
     package_dir={'': 'src'},
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(where='src'),
     entry_points={
         'console_scripts': [
             'twcrawl = twcrawl.cli:main'
