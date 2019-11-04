@@ -1,3 +1,3 @@
-__all__ = ["cli", "crawler", "models", "twitter"]
+from .version import __version__
 
-version = "1.0.2"
+__all__ = ["cli", "crawler", "models", "twitter"]
