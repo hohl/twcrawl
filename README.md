@@ -27,7 +27,7 @@ per each line of the text file.
 This will launch an endless running process, which crawls as many users as
 possible (and as fast as allowed by the Twitter API limits). You can pause the 
 process by simply killing it and continue the crawling process by starting it 
-again by executing `src/main.py` again (no more need for the `-i` parameter).
+again by executing `src/main.py` again (no more need for the `--users` parameter).
 
 The crawled database will be stored into `data/twitter.sqlite3` (or anywhere 
 else if you override the default values in your config file).
