@@ -1,3 +1,3 @@
-__all__ = ["crawler", "models", "twitter"]
+__all__ = ["cli", "crawler", "models", "twitter"]
 
 version = "1.0.2"
