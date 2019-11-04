@@ -70,11 +70,11 @@ class TwitterClient:
                 else:
                     raise
 
-    def friends_ids(self, screen_name: str) -> List[int]:
-        """Fetches the IDs of the givens screen names friends on Twitter."""
+    def friends_ids(self, user_id: int = None) -> List[int]:
+        """Fetches the IDs of the givens user friends on Twitter."""
         with twitter_scope(self.client) as twitter:
             try:
-                query = twitter.friends.ids(screen_name=screen_name)
+                query = twitter.friends.ids(user_id=user_id)
                 return query["ids"]
             except TwitterHTTPError as err:
                 if err.e.code == 404 or err.e.code == 401:

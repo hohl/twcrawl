@@ -96,12 +96,12 @@ class RelationsCrawler(BaseCrawler[str]):
     (Note: A friend in Twitters definition is somebody you follow.)
     """
 
-    def exec(self, screen_name: str) -> None:
-        self.log(f"Crawl friends of @{screen_name}...")
-        ids = self.twitter.friends_ids(screen_name)
-        self.log(f"Found {len(ids)} friends for @{screen_name}.")
+    def exec(self, user_id) -> None:
+        self.log(f"Crawl friends of #{user_id}...")
+        ids = self.twitter.friends_ids(user_id)
+        self.log(f"Found {len(ids)} friends for #{user_id}.")
         with session_scope() as session:
-            user = session.query(User).filter_by(screen_name=screen_name).one()
+            user = session.query(User).filter_by(id=user_id).first()
             user.friends = User.find_or_create(session, ids)
             user.friends_crawled_at = datetime.now()
             session.commit()
@@ -116,7 +116,7 @@ class RelationsCrawler(BaseCrawler[str]):
                 User.followers_count.desc()
             ).limit(5).all()
             for user in users:
-                self.schedule(user.screen_name)
+                self.schedule(user.id)
             self.log(f"Added {len(users)} users to the queue.")
 
 
